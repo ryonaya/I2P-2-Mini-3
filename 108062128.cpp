@@ -4,9 +4,12 @@
 #include <vector>
 #include <cstdlib>
 #include <ctime>
-#include <queue>
+#define MIN -2100000000
+#define MAX 2100000000
 using namespace std;
 
+// 1 = debug mode
+bool dede = 0;
 const int SIZE = 8;
 enum SPOT_STATE {
     EMPTY = 0,
@@ -139,7 +142,39 @@ struct Board{
     }
 
     int eval(){
-        return 1;
+        my_player = get_next_player(my_player);
+        int state_value = 0;
+        if (my_disc_count[my_player] == 0) {
+            return -1000;
+        }
+        for(int i=0; i<SIZE; i++){
+            if(my_board[i][0] == my_player) state_value += 4;
+            else if(my_board[i][0] == get_next_player(my_player)) state_value -= 3;
+            if(my_board[i][7] == my_player) state_value += 4;
+            else if(my_board[i][7] == get_next_player(my_player)) state_value -= 3;
+            if(my_board[0][i] == my_player) state_value += 4;
+            else if(my_board[0][i] == get_next_player(my_player)) state_value -= 3;
+            if(my_board[7][i] == my_player) state_value += 4;
+            else if(my_board[7][i] == get_next_player(my_player)) state_value -= 3;
+        }
+        for(int i=1; i<SIZE-1; i++){
+            if(my_board[1][i] == my_player) state_value -= 3;
+            if(my_board[6][i] == my_player) state_value -= 3;
+            if(my_board[i][1] == my_player) state_value -= 3;
+            if(my_board[i][6] == my_player) state_value -= 3;
+        }
+
+        if(my_disc_count[EMPTY] >= 45){
+            state_value *= 2;
+            state_value -= my_disc_count[my_player];
+        }
+        else if(my_disc_count[EMPTY] >= 25){
+            state_value += my_disc_count[my_player];
+        }
+        else{
+            state_value += my_disc_count[my_player] * 3;
+        }
+        return state_value;
     }
 };
 
@@ -182,7 +217,7 @@ void read_valid_spots(ifstream& fin) {
 }
 void write_valid_spot(ofstream& fout, int x, int y) {
     fout << x << " " << y << endl;
-    // fout << "I am " << player << endl;
+    if(dede)fout << "\nI am " << player << endl;
     fout.flush();
 }
 
@@ -201,16 +236,123 @@ void write_valid_spot(ofstream& fout, int x, int y) {
 
 
 // bd = board, not for BD master
-int recur(ofstream& fout, Board& bd, int depth, int alpha, int beta){
-    if(depth >= 4) return bd.eval();
 
-    bd.my_valid_spots = bd.get_valid_spots();
-    for(Point vali : bd.my_valid_spots){
-        Board tmp = bd;
-        tmp.put_disc(vali);
-        recur(fout, tmp, depth+1, alpha, beta);
-        if(depth == 0) write_valid_spot(fout, vali.x, vali.y);
+int recur(ofstream& fout, Board bd, int depth, int alpha, int beta){
+    if(depth >= (dede ? 3 : 9) || bd.my_disc_count[EMPTY] == 0){
+        int k = bd.eval();
+        if(dede)fout << "          " << "value = "<< k << endl;
+        return k;
     }
+    
+    bd.my_valid_spots = bd.get_valid_spots();
+    
+    if(bd.my_player == player){
+        int best = MIN;
+        for(Point p : bd.my_valid_spots){
+            if(dede) switch (depth)
+            {
+            case 0:
+                fout << "ME  ";
+                break;
+            case 1:
+                fout << "ME     ";
+                break;
+            case 2:
+                fout << "ME        ";
+                break;
+            default:
+                break;
+            }if(dede)fout << p.x << ", " << p.y << "-------------" << endl;
+            if(dede)fout.flush();
+
+            Board tmp = bd;
+            tmp.put_disc(p);
+            tmp.my_player = tmp.get_next_player(tmp.my_player);
+            int val = recur(fout, tmp, depth+1, alpha, beta);
+
+            if(best < val){
+                if(depth == 0){
+                   if(dede) fout << "\nA change here, " << best << " -> " << val << endl << "So the answer is now : ";
+                   if(dede) fout.flush();
+                    write_valid_spot(fout, p.x, p.y);
+                }
+                best = val;
+            }
+            alpha= max(best, alpha);
+
+            if(dede) switch (depth)
+            {
+            case 0:
+                fout << "    ";
+                break;
+            case 1:
+                fout << "       ";
+                break;
+            case 2:
+                fout << "          ";
+                break;
+            default:
+                break;
+            }if(dede)fout << "alph = " << alpha << " beta = " << beta << " best = " << best << endl;
+            if(dede)fout.flush();
+
+            if(beta <= alpha){
+                if(dede)fout << "          [BREAK]\n";
+                break;
+            }
+        }
+        if(depth != 0) return best;
+    }
+    else {
+        int best = MAX;
+        for(Point p : bd.my_valid_spots){
+            if(dede) switch (depth)
+            {
+            case 0:
+                cout << "OP  ";
+                break;
+            case 1:
+                fout << "OP     ";
+                break;
+            case 2:
+                fout << "OP        ";
+                break;
+            default:
+                break;
+            }if(dede)fout << p.x << ", " << p.y << "-------------" << endl;
+            if(dede)fout.flush();
+
+            Board tmp = bd;
+            tmp.put_disc(p);
+            tmp.my_player = tmp.get_next_player(tmp.my_player);
+            int val = recur(fout, tmp, depth+1, alpha, beta);
+
+            best = min(best, val);
+            beta = min(best, beta);
+            if(dede) switch (depth)
+            {
+            case 0:
+                fout << "    ";
+                break;
+            case 1:
+                fout << "       ";
+                break;
+            case 2:
+                fout << "          ";
+                break;
+            default:
+                break;
+            }if(dede)fout << "alph = " << alpha << " beta = " << beta << " best = " << best << endl;
+            if(dede)fout.flush();
+
+            if(beta <= alpha){
+                if(dede) fout << "          [BREAK]\n";
+                break;
+            }
+        }
+        if(depth != 0) return best;
+    }
+    return 1112;
 }
 
 int main(int, char** argv) {
@@ -222,8 +364,9 @@ int main(int, char** argv) {
     board.my_player = player;
     board.my_valid_spots = next_valid_spots;
 
-    recur(fout, board, 0, 10000000, -10000000);
+    recur(fout, board, 0, MIN, MAX);
 
+    // fout << "-10000000" << endl;
     fin.close();
     fout.close();
     return 0;
